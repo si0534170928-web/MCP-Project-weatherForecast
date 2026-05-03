@@ -81,6 +81,53 @@ async def select_and_submit_search() -> str:
     except Exception as e:
         return f"שגיאה במהלך ביצוע החיפוש: {str(e)}"
 
+#D
+@mcp.tool()
+async def get_hourly_weather() -> str:
+    """
+    קורא ומחלץ את התחזית השעתית מתוך טבלת מזג האוויר בדף הנוכחי.
+    """
+    global page_instance
+    
+    if page_instance is None or page_instance.is_closed():
+        return "שגיאה: אין מופע דף פעיל. יש להריץ קודם פתיחת אתר וחיפוש."
+
+    try:
+        # המתנה לטעינת שורות הטבלה השעתית
+        await page_instance.wait_for_selector("tr.hourly_data", timeout=5000)
+        
+        # איסוף כל השורות
+        rows = await page_instance.locator("tr.hourly_data").all()
+        
+        if not rows:
+            return "לא נמצאו נתוני תחזית שעתית בטבלה."
+
+        extracted_data = ["נתוני תחזית שעתית:"]
+        
+        for row in rows:
+            # חילוץ השעה מתוך תגית ה-th
+            hour = await row.locator("th.hourly_hour").inner_text()
+            # ניקוי השעה מטקסט עודף (בגלל ה-tooltip שיש ב-HTML)
+            hour = hour.split('\n')[0].strip()
+            
+            # איסוף התאים (td) באותה שורה
+            cells = await row.locator("td").all()
+            
+            if len(cells) >= 4:
+                # תא 0: אייקון (מדלגים)
+                # תא 1: טמפרטורה
+                temp = await cells[1].inner_text()
+                # תא 2: כמות גשם
+                rain = await cells[2].inner_text()
+                # תא 3: לחות
+                humidity = await cells[3].inner_text()
+                
+                extracted_data.append(f"שעה: {hour} | טמפרטורה: {temp.strip()} | גשם: {rain.strip()} | לחות: {humidity.strip()}")
+        
+        return "\n".join(extracted_data)
+
+    except Exception as e:
+        return f"שגיאה במהלך חילוץ הנתונים מהטבלה: {str(e)}"
 def main():
     mcp.run(transport="stdio")
 
